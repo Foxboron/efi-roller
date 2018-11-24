@@ -1,0 +1,78 @@
+efi-roller(8)
+========
+
+Name
+----
+efi-roller - Roll your own EFI signing keys
+
+
+Synopsis
+--------
+'efi-roller' <command>
+
+
+Description
+-----------
+'efi-roller' ...
+
+
+Commands
+--------
+**create-keys**::
+        ...
+
+**sign** <FILE>... ::
+        ...
+
+**sign-all**::
+        ...
+
+**verify** <FILE>... ::
+        ...
+
+**verify-esp**::
+        ...
+
+**enroll** <FILE>... ::
+        ...
+
+**disenroll** <FILE>... ::
+        ...
+
+**help** <FILE>... ::
+        ...
+
+
+Environment Variables
+-------------
+**ESP**::
+        ...
+
+**EFI_ROLLER_ROOT**::
+        ...
+
+
+Files
+----
+**/var/lib/efi-roller**::
+        ...
+
+**/var/lib/efi-roller/GUID**::
+        ...
+
+**/var/lib/efi-roller/files.db**::
+        ...
+
+**/var/lib/efi-roller/keys/db/DB.{auth,cer,crt,esl,key}**::
+        ...
+
+**/var/lib/efi-roller/keys/kek/KEK.{auth,cer,crt,esl,key}**::
+        ...
+
+**/var/lib/efi-roller/keys/pk/PK.{auth,cer,crt,esl,key}**::
+        ...
+
+
+See Also
+--------
+linkman:sbsign[1]

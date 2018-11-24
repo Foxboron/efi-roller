@@ -1,0 +1,278 @@
+#!/usr/bin/bash
+
+set -euo pipefail
+
+readonly ESP="${ESP:-/boot}" #Should autodetect this tbh
+readonly EFI_ROLLER_ROOT="${EFI_ROLLER_ROOT:-/var/lib/efi-roller}"
+test -d $EFI_ROLLER_ROOT || mkdir -p $EFI_ROLLER_ROOT
+readonly FILE_DATABASE="$EFI_ROLLER_ROOT/files.db"
+test -e $FILE_DATABASE || (umask 077; touch $FILE_DATABASE)
+readonly KEYS="$EFI_ROLLER_ROOT/keys"
+readonly PK="$KEYS/pk"
+readonly KEK="$KEYS/kek"
+readonly DB="$KEYS/db"
+
+RED=$(tput setaf 1)
+GREEN=$(tput setaf 2)
+YELLOW=$(tput setaf 3)
+BLUE=$(tput setaf 4)
+BOLD=$(tput bold)
+ALL_OFF=$(tput sgr0)
+readonly ALL_OFF BOLD BLUE GREEN RED YELLOW
+
+plain() {
+    local mesg=$1; shift
+    printf "${BOLD} ${mesg}${ALL_OFF}\n" "$@" >&2
+}
+
+msg() {
+    local mesg=$1; shift
+    printf "${BOLD}${GREEN}==>${ALL_OFF}${BOLD} ${mesg}${ALL_OFF}\n" "$@" >&2
+}
+
+msg2() {
+    local mesg=$1; shift
+    printf "${BOLD}${BLUE}  ->${ALL_OFF}${BOLD} ${mesg}${ALL_OFF}\n" "$@" >&2
+}
+
+warning() {
+    local mesg=$1; shift
+    printf "${BOLD}${YELLOW}==> WARNING:${ALL_OFF}${BOLD} ${mesg}${ALL_OFF}\n" "$@" >&2
+}
+
+error() {
+    local mesg=$1; shift
+    printf "${BOLD}${RED}==> ERROR:${ALL_OFF}${BOLD} ${mesg}${ALL_OFF}\n" "$@" >&2
+}
+
+stat_busy() {
+    local mesg=$1; shift
+    printf "${BOLD}${GREEN}==>${ALL_OFF}${BOLD} ${mesg}...${ALL_OFF}" >&2
+}
+
+stat_done() {
+    printf "${BOLD}done${ALL_OFF}\n" >&2
+}
+
+init_key(){
+    local cn=$1
+    local keyname=$2
+    if [ -e "$keyname.key" ]; then
+        warning "$2.key exists"
+        return
+    fi
+    (
+        umask 077
+        openssl req -newkey "rsa:$KEYSIZE" -nodes -keyout "$keyname.key" -new -x509 -sha256 -days 3650 -subj "/CN=$cn/" -out "$keyname.crt"
+        openssl x509 -outform DER -in "$keyname.crt" -out "$keyname.cer"
+        cert-to-efi-sig-list -g "$(< $EFI_ROLLER_ROOT/GUID)" "$keyname.crt" "$keyname.esl"
+    )
+}
+
+sign_key(){
+    local signing_key=$1
+    local signing_key_cert=$2
+    local key_to_sign=$3
+    (
+        umask 077
+        sign-efi-sig-list -g "$(< $EFI_ROLLER_ROOT/GUID)" -k "$signing_key" -c "$signing_key_cert" "$key_to_sign" "$key_to_sign.esl" "$key_to_sign.auth"
+    )
+}
+
+create_keys(){
+    local DIRECTORY="$EFI_ROLLER_ROOT/keys"
+    local KEYSIZE=4096
+    pushd $EFI_ROLLER_ROOT >/dev/null
+
+    if [ -e "$DB/DB.key" ]; then
+        error "Keys have been created before...quitting"
+        return 1
+    fi
+
+    (umask 077; uuidgen --random > GUID)
+    msg "Created system GUID %s" $(< $EFI_ROLLER_ROOT/GUID)
+    msg "Creating keys with size %s" $KEYSIZE
+
+    msg2 "Platform key..."
+    trap 'error "Failed to create key"; rm $DIRECTORY/PK' ERR
+    mkdir -p "$PK" && pushd "$PK" >/dev/null
+    init_key "$(hostname) Platform Key" "PK"
+    sign_key "$PK/PK.key" "$PK/PK.crt" "PK"
+    popd >/dev/null
+
+    msg2 "Key Exchange key..."
+    trap 'error "Failed to create key"; rm -r $DIRECTORY/KEK' ERR
+    mkdir -p "$KEK" && pushd "$KEK" >/dev/null
+    init_key "$(hostname) Key Exchange" "KEK"
+    sign_key "$PK/PK.key" "$PK/PK.crt" "KEK"
+    popd >/dev/null
+
+    msg2 "Signature Database key..."
+    trap 'error "Failed to create key"; rm $DIRECTORY/DB/' ERR
+    mkdir -p "$DB" && pushd "$DB" >/dev/null
+    init_key "$(hostname) Signature Database" "DB"
+    sign_key "$KEK/KEK.key" "$KEK/KEK.crt" "DB"
+    popd >/dev/null
+}
+
+check_key(){
+    if [ ! -e "$DB/DB.key" ]; then
+        error "No keys created. Initialize with create-keys"
+    fi
+}
+
+iterate_files(){
+    for file in $@; do
+        local file_path=$(readlink -f $file) 
+        if [ -e $file_path ]; then
+            echo $file_path
+        else
+            error "%s does not exists" $file_path
+        fi
+    done
+}
+
+enroll(){
+    declare -A files
+    . "$FILE_DATABASE"
+    for file in $(iterate_files $@); do
+        msg "Enrolling %s..." $file
+        files["$file"]=1
+    done
+    declare -p files > "$FILE_DATABASE"
+}
+
+disenroll(){
+    declare -A files
+    . "$FILE_DATABASE"
+    for file in $(iterate_files $@); do
+        msg "Disenrolling %s..." $file
+        unset files["$file"]
+    done
+    declare -p files > "$FILE_DATABASE"
+}
+
+enroll_keys(){
+    msg "Preparing EFI keys for enrollment"
+    mkdir -p "$ESP/keys"
+    for dir in "$PK" "$KEK" "$DB"; do
+        cp "$dir/"{*.cer,*.esl,*.auth} "$ESP/keys"
+    done
+    if [ -e "/usr/share/efitools/efi/KeyTool.efi" ]; then
+        msg "Found KeyTool.efi"
+        msg2 "Moving info $ESP/EFI/BOOT/KeyTool.efi and signing..."
+        test -d "$ESP/EFI/BOOT" || mkdir -p "$ESP/EFI/BOOT"
+        cp /usr/share/efitools/efi/KeyTool.efi "$ESP/EFI/BOOT"
+        sign "$ESP/EFI/BOOT/KeyTool.efi"
+    fi
+    warning "Keys have been put on %s. Remember to remove keys after the enrollment\!" $ESP
+}
+
+find_efi_images(){
+    for file in $(find $ESP -type f); do
+        if [ $(file -b --mime-type $file) = "application/x-dosexec" ]; then
+            echo $file
+        fi
+    done
+}
+
+verify(){
+    local IMG=$1
+    if ! sbverify --cert $DB/DB.crt $IMG &>/dev/null; then
+        warning "%s is not signed!" $IMG
+        return 1
+    else
+        msg2 "%s is signed!" $IMG
+        return 0
+    fi
+}
+
+verify-esp(){
+    msg "Verifying EFI images in $ESP..."
+    local ALL=1
+    for img in $(find_efi_images); do
+        if ! verify $img; then
+            ALL=0
+        fi
+    done
+    if ((ALL)); then
+        msg "All EFI images signed!"
+    fi
+}
+
+sign(){
+    local file=$(readlink -f "$1")
+    if ! verify $file &>/dev/null; then
+        msg2 "Signing %s" $file
+        sbsign --key "$DB/DB.key" --cert "$DB/DB.crt" --output $file $file &>/dev/null
+    else
+        msg2 "%s is allready signed" $file
+    fi
+}
+
+sign_all(){
+    declare -A files
+    . "$FILE_DATABASE"
+    msg "Signing all enrolled files..."
+    for file in "${!files[@]}"; do
+        sign $file
+    done
+}
+
+help(){
+    cat <<-EOF
+Usage:
+  $0 [COMMAND]
+
+Commands:
+  create-keys           Create keys for EFI signatures
+  sign FILE...          Sign a file
+  sign-all              Sign all enrolled files
+  verify FILE...        Verify a file
+  verify-esp            Verify all EFI files in ESP
+  enroll FILE...        Enroll a file
+  disenroll FILE...     Disenroll a file
+
+EOF
+}
+
+for cmd in "$@"; do
+    case "$cmd" in
+        sign)
+            shift
+            check_key
+            sign $@
+            ;;
+        sign-all)
+            check_key
+            sign_all
+            ;;
+        create-keys)
+            create_keys
+            ;;
+        enroll)
+            shift
+            enroll $@
+            ;;
+        enroll-keys)
+            check_key
+            enroll_keys
+            ;;
+        disenroll)
+            shift
+            disenroll $@
+            ;;
+        verify)
+            shift
+            check_key
+            verify $@
+            ;;
+        verify-esp)
+            check_key
+            verify-esp
+            ;;
+        help)
+            help
+            ;;
+    esac
+done

@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = linux systemd
+
+[Action]
+Description = Signing EFI images
+When = PostTransaction
+Exec = /usr/bin/efi-roller sign-all
+Depends = sbsigntools
+Depends = efi-roller
