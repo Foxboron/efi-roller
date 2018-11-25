@@ -120,6 +120,7 @@ create_keys(){
 check_key(){
     if [ ! -e "$DB/DB.key" ]; then
         error "No keys created. Initialize with create-keys"
+        exit 1
     fi
 }
 
