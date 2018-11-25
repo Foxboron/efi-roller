@@ -3,6 +3,8 @@
 set -euo pipefail
 
 readonly ESP="${ESP:-/boot}" #Should autodetect this tbh
+# Something like:
+# lsblk -o PARTTYPE,MOUNTPOINT | awk '$1 == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" {print $2}'
 readonly EFI_ROLLER_ROOT="${EFI_ROLLER_ROOT:-/var/lib/efi-roller}"
 test -d $EFI_ROLLER_ROOT || mkdir -p $EFI_ROLLER_ROOT
 readonly FILE_DATABASE="$EFI_ROLLER_ROOT/files.db"
@@ -165,7 +167,7 @@ enroll_keys(){
         cp /usr/share/efitools/efi/KeyTool.efi "$ESP/EFI/BOOT"
         sign "$ESP/EFI/BOOT/KeyTool.efi"
     fi
-    warning "Keys have been put on %s. Remember to remove keys after the enrollment\!" $ESP
+    warning "Keys have been put on %s. Remember to remove keys after the enrollment!" "$ESP/keys"
 }
 
 find_efi_images(){
@@ -225,13 +227,14 @@ Usage:
   $0 [COMMAND]
 
 Commands:
-  create-keys           Create keys for EFI signatures
-  sign FILE...          Sign a file
-  sign-all              Sign all enrolled files
-  verify FILE...        Verify a file
-  verify-esp            Verify all EFI files in ESP
-  enroll FILE...        Enroll a file
-  disenroll FILE...     Disenroll a file
+  create-keys           Create keys for EFI signatures.
+  sign FILE...          Sign a file.
+  sign-all              Sign all enrolled files.
+  verify FILE...        Verify a file.
+  verify-esp            Verify all EFI files in ESP.
+  enroll FILE...        Enroll a file.
+  disenroll FILE...     Disenroll a file.
+  enroll-keys           Attempts to enroll the keys into EFI.
 
 EOF
 }
