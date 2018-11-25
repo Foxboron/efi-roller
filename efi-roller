@@ -154,8 +154,29 @@ disenroll(){
     declare -p files > "$FILE_DATABASE"
 }
 
+enroll_keys_cli(){
+    if [[ $(hexdump /sys/firmware/efi/efivars/SetupMode* | awk '{print $4}') = "0000" ]]; then
+        error "Computer is not in Setup Mode"
+        return 1
+    fi
+    if ! efi-updatevar -e -f "$KEK/KEK.esl" KEK; then
+        return 1
+    fi
+    if ! efi-updatevar -e -f "$DB/db.esl" db; then
+        return 1
+    fi
+    if ! efi-updatevar -f "$PK/PK.auth" PK; then
+        return 1
+    fi
+    return 0
+}
+
 enroll_keys(){
-    msg "Preparing EFI keys for enrollment"
+    if enroll_keys_with_efi; then
+        return
+    fi
+    error "Couldn't enroll keys with efi-updatevar"
+    msg "Preparing EFI keys for enrollment through ESP"
     mkdir -p "$ESP/keys"
     for dir in "$PK" "$KEK" "$DB"; do
         cp "$dir/"{*.cer,*.esl,*.auth} "$ESP/keys"
