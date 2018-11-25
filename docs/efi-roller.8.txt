@@ -1,5 +1,5 @@
 efi-roller(8)
-========
+=============
 
 Name
 ----
@@ -13,64 +13,79 @@ Synopsis
 
 Description
 -----------
-'efi-roller' ...
+'efi-roller' is a very simple program to help roll your own EFI signing keys. It
+will help you sign and manage EFI binaries and sign them appropriately.
 
 
 Commands
 --------
 **create-keys**::
-        ...
+        Creates a set of signing keys used to sign EFI binaries. Currently it
+        will create the following keys:
+        * Platform Key
+        * Key Exchange key
+        * Signature Database Key
 
-**sign** <FILE>... ::
-        ...
+**enroll-keys**::
+        It will first attempt to use linkman:efi-updatevar[1] to enroll the
+        required keys. This requires User Mode, or Setup Mode, to be enabled. If
+        this doesn't work, the keys will be preapred for enrollment through the
+        KeyTool.efi with keys stores to ESP/keys.
+
+**sign** <FILE>...::
+        Signs a EFI binary with the created key. The file will be checked for
+        valid signatures to avoid duplicates.
 
 **sign-all**::
-        ...
+        Signs all enrolled EFI binaries.
 
-**verify** <FILE>... ::
-        ...
+**verify** <FILE>...::
+        Verifies an EFI binary if it has been signed with the Signature Database
+        key.
 
 **verify-esp**::
-        ...
+        Looks for EFI binaries with the mime type application/x-dosexec and
+        checks if they have been signed with the Signature Database Key.
 
-**enroll** <FILE>... ::
-        ...
+**enroll** <FILE>...::
+        Adds a EFI binary into the file database to be signed.
 
-**disenroll** <FILE>... ::
-        ...
+**disenroll** <FILE>...::
+        Removed the EFI binary from the file database.
 
-**help** <FILE>... ::
-        ...
+**help** <FILE>...::
+        Displays a help message.
 
 
 Environment Variables
--------------
+---------------------
 **ESP**::
-        ...
+        Overrides the ESP location used for enrolling keys, and finding EFI
+        binaries to sign. Defaults to /boot
 
 **EFI_ROLLER_ROOT**::
-        ...
+        Override the default efi-roller location. Defaults to /var/lib/efi-roller
 
 
 Files
 ----
 **/var/lib/efi-roller**::
-        ...
+        Default storage directory.
 
 **/var/lib/efi-roller/GUID**::
-        ...
+        Owner identification. This is a randomly generated UUID.
 
 **/var/lib/efi-roller/files.db**::
-        ...
+        Contains a list of EFI binaries to be signed by the generated key.
 
 **/var/lib/efi-roller/keys/db/DB.{auth,cer,crt,esl,key}**::
-        ...
+        Contains the Signature Database key used for signing EFI binaries.
 
 **/var/lib/efi-roller/keys/kek/KEK.{auth,cer,crt,esl,key}**::
-        ...
+        Contains the Key Exchange Key.
 
 **/var/lib/efi-roller/keys/pk/PK.{auth,cer,crt,esl,key}**::
-        ...
+        Contains the Platform Key.
 
 
 See Also

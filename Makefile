@@ -11,7 +11,7 @@ all: man efi-roller
 man: $(MANS)
 $(MANS):
 
-docs/repro.%: docs/efi-roller.%.txt docs/asciidoc.conf
+docs/efi-roller.%: docs/efi-roller.%.txt docs/asciidoc.conf
 	a2x --no-xmllint --asciidoc-opts="-f docs/asciidoc.conf" -d manpage -f manpage -D docs $<
 
 install: man
