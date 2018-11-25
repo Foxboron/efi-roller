@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+if [ $EUID != 0 ]; then
+    sudo "$0" "$@"
+    exit $?
+fi
+
 readonly ESP="${ESP:-/boot}" #Should autodetect this tbh
 # Something like:
 # lsblk -o PARTTYPE,MOUNTPOINT | awk '$1 == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" {print $2}'
