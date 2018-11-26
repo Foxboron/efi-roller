@@ -83,7 +83,7 @@ Signature at 40
 λ » efi-roller verify-esp                 
 ==> Verifying EFI images in /boot...
 ==> WARNING: /boot/vmlinuz-linuz is not signed!
-  -> /home/fox/Git/prosjekter/Bash/efi-roller/boot/vmlinuz-linux-lts is signed!
+  -> /boot/vmlinuz-linux-lts is signed!
 ```
 
 ## Enroll files
