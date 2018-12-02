@@ -16,7 +16,6 @@ docs/efi-roller.%: docs/efi-roller.%.txt docs/asciidoc.conf
 
 install: man
 	install -Dm755 efi-roller -t $(DESTDIR)$(BINDIR)
-	install -Dm644 contrib/*   -t $(DESTDIR)$(DOCDIR)/$(PROGNM)
 	for manfile in $(MANS); do \
 		install -Dm644 $$manfile -t $(DESTDIR)$(MANDIR)/man$${manfile##*.}; \
 	done;
