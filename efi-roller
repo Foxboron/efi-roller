@@ -7,9 +7,7 @@ if [ $EUID != 0 ]; then
     exit $?
 fi
 
-readonly ESP="${ESP:-/boot}" #Should autodetect this tbh
-# Something like:
-# lsblk -o PARTTYPE,MOUNTPOINT | awk '$1 == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" {print $2}'
+readonly ESP="${ESP:-$(lsblk -o PARTTYPE,MOUNTPOINT | awk '$1 == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" {print $2}')}"
 readonly EFI_ROLLER_ROOT="${EFI_ROLLER_ROOT:-/var/lib/efi-roller}"
 test -d $EFI_ROLLER_ROOT || mkdir -p $EFI_ROLLER_ROOT
 readonly FILE_DATABASE="$EFI_ROLLER_ROOT/files.db"
