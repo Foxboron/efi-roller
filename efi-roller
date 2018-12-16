@@ -264,6 +264,8 @@ Commands:
 EOF
 }
 
+test -z "$@" && help
+
 for cmd in "$@"; do
     case "$cmd" in
         sign)
