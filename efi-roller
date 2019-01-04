@@ -197,7 +197,7 @@ enroll_keys(){
 
 find_efi_images(){
     for file in $(find $ESP -type f); do
-        if [ $(file -b --mime-type $file) = "application/x-dosexec" ]; then
+        if [ "$(file -b --mime-type "$file")" = "application/x-dosexec" ]; then
             echo $file
         fi
     done
