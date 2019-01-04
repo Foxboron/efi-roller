@@ -1,6 +1,7 @@
 #!/usr/bin/bash
 
 set -euo pipefail
+shopt -s globstar
 
 if [ $EUID != 0 ]; then
     sudo "$0" "$@"
@@ -196,7 +197,7 @@ enroll_keys(){
 }
 
 find_efi_images(){
-    for file in $(find $ESP -type f); do
+    for file in "$ESP/"**; do
         if [ "$(file -b --mime-type "$file")" = "application/x-dosexec" ]; then
             echo $file
         fi
