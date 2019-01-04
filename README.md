@@ -23,6 +23,13 @@ Commands:
   disenroll FILE...     Disenroll a file
 ```
 
+# Dependencies
+
+* efitools
+* openssl
+* sbsigntools
+* util-linux
+
 # Usage
 
 ## Create keys
