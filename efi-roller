@@ -154,8 +154,8 @@ enroll(){
 disenroll(){
     declare -A files
     . "$FILE_DATABASE"
-    for file in $(iterate_files $@); do
-        msg "Disenrolling %s..." $file
+    for file in $(iterate_files "$@"); do
+        msg "Disenrolling %s..." "$file"
         unset files["$file"]
     done
     declare -p files > "$FILE_DATABASE"
@@ -201,18 +201,18 @@ enroll_keys(){
 find_efi_images(){
     for file in "$ESP/"**; do
         if [ "$(file -b --mime-type "$file")" = "application/x-dosexec" ]; then
-            echo $file
+            echo "$file"
         fi
     done
 }
 
 verify(){
     local IMG=$1
-    if ! sbverify --cert $DB/DB.crt $IMG &>/dev/null; then
-        warning "%s is not signed!" $IMG
+    if ! sbverify --cert "$DB/DB.crt" "$IMG" &>/dev/null; then
+        warning "%s is not signed!" "$IMG"
         return 1
     else
-        msg2 "%s is signed!" $IMG
+        msg2 "%s is signed!" "$IMG"
         return 0
     fi
 }
@@ -221,7 +221,7 @@ verify_esp(){
     msg "Verifying EFI images in $ESP..."
     local ALL=1
     for img in $(find_efi_images); do
-        if ! verify $img; then
+        if ! verify "$img"; then
             ALL=0
         fi
     done
@@ -233,10 +233,10 @@ verify_esp(){
 sign(){
     local file=$(readlink -f "$1")
     if ! verify $file &>/dev/null; then
-        msg2 "Signing %s" $file
-        sbsign --key "$DB/DB.key" --cert "$DB/DB.crt" --output $file $file &>/dev/null
+        msg2 "Signing %s" "$file"
+        sbsign --key "$DB/DB.key" --cert "$DB/DB.crt" --output "$file" "$file" &>/dev/null
     else
-        msg2 "%s is allready signed" $file
+        msg2 "%s is allready signed" "$file"
     fi
 }
 
@@ -300,36 +300,36 @@ generate_bundles(){
             --add-section .linux="${bundles[$name::vmlinuz]}" --change-section-vma .linux=0x40000 \
             --add-section .initrd="$initramfs" --change-section-vma .initrd=0x3000000 \
             "/usr/lib/systemd/boot/efi/linuxx64.efi.stub" "$ESP/EFI/Linux/linux-$name.efi"
-                    msg "wrote: $ESP/EFI/Linuz/linux-$name.efi"
-                done
-            }
+		msg "wrote: $ESP/EFI/Linuz/linux-$name.efi"
+	done
+}
 
-        list_bundles(){
-            declare -A bundles
-            declare -A bundles_index
-            . "$BUNDLE_DATABASE"
-            for name in "${!bundles_index[@]}"; do
-                msg $name
-                msg2 "vmlinuz: ${bundles[$name::vmlinuz]}"
-                msg2 "initramfs: ${bundles[$name::initramfs]}"
-                test ! -z "${bundles[$name::intel_ucode]}" && msg2 "intel_ucode: ${bundles[$name::intel_ucode]}"
-                test ! -z "${bundles[$name::amd_ucode]}" && msg2 "amd_ucode: ${bundles[$name::amd_ucode]}"
-                msg2 "output: $ESP/EFI/Linuz/linux-$name.efi"
-            done
-        }
+list_bundles(){
+	declare -A bundles
+	declare -A bundles_index
+	. "$BUNDLE_DATABASE"
+	for name in "${!bundles_index[@]}"; do
+		msg $name
+		msg2 "vmlinuz: ${bundles[$name::vmlinuz]}"
+		msg2 "initramfs: ${bundles[$name::initramfs]}"
+		test ! -z "${bundles[$name::intel_ucode]}" && msg2 "intel_ucode: ${bundles[$name::intel_ucode]}"
+		test ! -z "${bundles[$name::amd_ucode]}" && msg2 "amd_ucode: ${bundles[$name::amd_ucode]}"
+		msg2 "output: $ESP/EFI/Linuz/linux-$name.efi"
+	done
+}
 
-    remove_bundle(){
-        test $# != 1 && error "Wrong number of arguments!" && exit 1
-        local BUNDLE_NAME=$1
-        declare -A bundles
-        declare -A bundles_index
-        . "$BUNDLE_DATABASE"
-        unset bundles["$BUNDLE_NAME::vmlinuz"]
-        unset bundles["$BUNDLE_NAME::initramfs"]
-        unset bundles_index["$BUNDLE_NAME"]
-        declare -p bundles bundles_index > "$BUNDLE_DATABASE"
-        warning "Removed bundle $BUNDLE_NAME"
-    }
+remove_bundle(){
+	test $# != 1 && error "Wrong number of arguments!" && exit 1
+	local BUNDLE_NAME=$1
+	declare -A bundles
+	declare -A bundles_index
+	. "$BUNDLE_DATABASE"
+	unset bundles["$BUNDLE_NAME::vmlinuz"]
+	unset bundles["$BUNDLE_NAME::initramfs"]
+	unset bundles_index["$BUNDLE_NAME"]
+	declare -p bundles bundles_index > "$BUNDLE_DATABASE"
+	warning "Removed bundle $BUNDLE_NAME"
+}
 
 
 help(){
