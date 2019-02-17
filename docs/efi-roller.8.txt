@@ -17,8 +17,8 @@ Description
 will help you sign and manage EFI binaries and sign them appropriately.
 
 
-Commands
---------
+EFI signing commands
+--------------------
 **create-keys**::
         Creates a set of signing keys used to sign EFI binaries. Currently it
         will create the following keys:
@@ -56,6 +56,26 @@ Commands
 **help** <FILE>...::
         Displays a help message.
 
+EFI binary commands
+------------------
+
+**bundle** [FLAG] <NAME> <VMLINUZ PATH> <INITRAMFS PATH>::
+        Creates a bundle that should produce EFI binaries. This is usefull if
+        you want to sign your initramfs along with your kernel.
+
+        * -i|--intel <PATH> - Include Intel microcode
+        * -a|--amd <PATH> - Include AMD microcode
+
+**remove-bundle** <NAME>::
+        Removes a bundle from the list.
+
+**generate-bundles**::
+        This command generates all bundles and puts them into
+        **$ESP/Linux/linux-$bundlename.efi**. These are not signed and it's
+        expected that you enroll them yourself.
+
+**list-bundles**::
+        List all registed bundles to generate.
 
 Environment Variables
 ---------------------
@@ -77,6 +97,9 @@ Files
 
 **/var/lib/efi-roller/files.db**::
         Contains a list of EFI binaries to be signed by the generated key.
+
+**/var/lib/efi-roller/bundles.db**::
+        Contains a list of EFI bundles to be generated.
 
 **/var/lib/efi-roller/keys/db/DB.{auth,cer,crt,esl,key}**::
         Contains the Signature Database key used for signing EFI binaries.

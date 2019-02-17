@@ -12,7 +12,9 @@ readonly ESP="${ESP:-$(lsblk -o PARTTYPE,MOUNTPOINT | awk '$1 == "c12a7328-f81f-
 readonly EFI_ROLLER_ROOT="${EFI_ROLLER_ROOT:-/var/lib/efi-roller}"
 test -d "$EFI_ROLLER_ROOT" || mkdir -p "$EFI_ROLLER_ROOT"
 readonly FILE_DATABASE="$EFI_ROLLER_ROOT/files.db"
-test -e $FILE_DATABASE || (umask 077; touch $FILE_DATABASE)
+test -e "$FILE_DATABASE" || (umask 077; touch "$FILE_DATABASE")
+readonly BUNDLE_DATABASE="$EFI_ROLLER_ROOT/bundles.db"
+test -e "$BUNDLE_DATABASE" || (umask 077; touch "$BUNDLE_DATABASE")
 readonly KEYS="$EFI_ROLLER_ROOT/keys"
 readonly PK="$KEYS/pk"
 readonly KEK="$KEYS/kek"
@@ -247,12 +249,95 @@ sign_all(){
     done
 }
 
+bundle(){
+    local amd_ucode=""
+    local intel_ucode=""
+    while true; do
+        case "$1" in
+            -a|--amd)      shift; amd_ucode=$1; shift; break ;;
+            -i|--intel)      shift; intel_ucode=$1; shift; break ;;
+            *) break ;;
+        esac
+    done
+    test $# != 3 && error "Wrong number of arguments!" && exit 1
+    local BUNDLE_NAME=$1
+    local VMLINUZ=$2
+    local INITRAMFS=$3
+    declare -A bundles
+    declare -A bundles_index
+    . "$BUNDLE_DATABASE"
+    bundles_index["$BUNDLE_NAME"]=1
+    bundles["$BUNDLE_NAME::vmlinuz"]=$VMLINUZ
+    bundles["$BUNDLE_NAME::initramfs"]=$INITRAMFS
+    bundles["$BUNDLE_NAME::intel_ucode"]=$intel_ucode
+    bundles["$BUNDLE_NAME::amd_ucode"]=$amd_ucode
+    declare -p bundles bundles_index > "$BUNDLE_DATABASE"
+    msg "Created bundle $BUNDLE_NAME"
+    exit 1
+}
+
+generate_bundles(){
+    test -d "$ESP/EFI/Linux" || mkdir -p "$ESP/EFI/Linux"
+    declare -A bundles
+    declare -A bundles_index
+    . "$BUNDLE_DATABASE"
+    for name in "${!bundles_index[@]}"; do
+        local initramfs=${bundles[$name::initramfs]}
+        if [ ! -z "${bundles[$name::amd_ucode]}" ]; then
+            local tmpfile=$(mktemp /var/tmp/efi-roller.XXX)
+            cat "${bundles[$name::amd_ucode]}" "$initramfs" > "$tmpfile"
+            trap "{ rm -f $tmpfile; }" EXIT
+            initramfs=$tmpfile
+        elif [ ! -z "${bundles[$name::intel_ucode]}" ]; then
+            local tmpfile=$(mktemp /var/tmp/efi-roller.XXX)
+            cat "${bundles[$name::intel_ucode]}" "$initramfs" > "$tmpfile"
+            trap "{ rm -f $tmpfile; }" EXIT
+            initramfs=$tmpfile
+        fi
+        objcopy \
+            --add-section .osrel="/usr/lib/os-release" --change-section-vma .osrel=0x20000 \
+            --add-section .cmdline="/proc/cmdline" --change-section-vma .cmdline=0x30000 \
+            --add-section .linux="${bundles[$name::vmlinuz]}" --change-section-vma .linux=0x40000 \
+            --add-section .initrd="$initramfs" --change-section-vma .initrd=0x3000000 \
+            "/usr/lib/systemd/boot/efi/linuxx64.efi.stub" "$ESP/EFI/Linux/linux-$name.efi"
+                    msg "wrote: $ESP/EFI/Linuz/linux-$name.efi"
+                done
+            }
+
+        list_bundles(){
+            declare -A bundles
+            declare -A bundles_index
+            . "$BUNDLE_DATABASE"
+            for name in "${!bundles_index[@]}"; do
+                msg $name
+                msg2 "vmlinuz: ${bundles[$name::vmlinuz]}"
+                msg2 "initramfs: ${bundles[$name::initramfs]}"
+                test ! -z "${bundles[$name::intel_ucode]}" && msg2 "intel_ucode: ${bundles[$name::intel_ucode]}"
+                test ! -z "${bundles[$name::amd_ucode]}" && msg2 "amd_ucode: ${bundles[$name::amd_ucode]}"
+                msg2 "output: $ESP/EFI/Linuz/linux-$name.efi"
+            done
+        }
+
+    remove_bundle(){
+        test $# != 1 && error "Wrong number of arguments!" && exit 1
+        local BUNDLE_NAME=$1
+        declare -A bundles
+        declare -A bundles_index
+        . "$BUNDLE_DATABASE"
+        unset bundles["$BUNDLE_NAME::vmlinuz"]
+        unset bundles["$BUNDLE_NAME::initramfs"]
+        unset bundles_index["$BUNDLE_NAME"]
+        declare -p bundles bundles_index > "$BUNDLE_DATABASE"
+        warning "Removed bundle $BUNDLE_NAME"
+    }
+
+
 help(){
     cat <<-EOF
 Usage:
   $PROGRAM [COMMAND]
 
-Commands:
+EFI signing commands:
   create-keys           Create keys for EFI signatures.
   sign FILE...          Sign a file.
   sign-all              Sign all enrolled files.
@@ -261,6 +346,14 @@ Commands:
   enroll FILE...        Enroll a file.
   disenroll FILE...     Disenroll a file.
   enroll-keys           Attempts to enroll the keys into EFI.
+
+EFI binary commands:
+  bundle [FLAG] NAME VMLINUZ INITRAMFS     Bundles a kernel and initramfs
+      -i|--intel PATH                      Include Intel microcode
+      -a|--amd PATH                        Include AMD microcode
+  remove-bundle NAME                       Removes a bundle
+  list-bundles                             List all EFI bundles
+  generate-bundles                         Generates all bundles
 
 EOF
 }
