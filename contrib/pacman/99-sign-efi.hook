@@ -1,12 +1,12 @@
 [Trigger]
+Type = File
 Operation = Install
 Operation = Upgrade
-Type = Package
-Target = linux systemd
+Operation = Remove
+Target = boot/*
+Target = boot/EFI/*
 
 [Action]
-Description = Signing EFI images
+Description = Signing EFI binaries...
 When = PostTransaction
 Exec = /usr/bin/efi-roller sign-all
-Depends = sbsigntools
-Depends = efi-roller

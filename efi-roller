@@ -10,7 +10,7 @@ fi
 
 readonly ESP="${ESP:-$(lsblk -o PARTTYPE,MOUNTPOINT | awk '$1 == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" {print $2}')}"
 readonly EFI_ROLLER_ROOT="${EFI_ROLLER_ROOT:-/var/lib/efi-roller}"
-test -d $EFI_ROLLER_ROOT || mkdir -p $EFI_ROLLER_ROOT
+test -d "$EFI_ROLLER_ROOT" || mkdir -p "$EFI_ROLLER_ROOT"
 readonly FILE_DATABASE="$EFI_ROLLER_ROOT/files.db"
 test -e $FILE_DATABASE || (umask 077; touch $FILE_DATABASE)
 readonly KEYS="$EFI_ROLLER_ROOT/keys"
@@ -68,10 +68,10 @@ init_key(){
         return
     fi
     (
-        umask 077
-        openssl req -newkey "rsa:$KEYSIZE" -nodes -keyout "$keyname.key" -new -x509 -sha256 -days 3650 -subj "/CN=$cn/" -out "$keyname.crt"
-        openssl x509 -outform DER -in "$keyname.crt" -out "$keyname.cer"
-        cert-to-efi-sig-list -g "$(< $EFI_ROLLER_ROOT/GUID)" "$keyname.crt" "$keyname.esl"
+    umask 077
+    openssl req -newkey "rsa:$KEYSIZE" -nodes -keyout "$keyname.key" -new -x509 -sha256 -days 3650 -subj "/CN=$cn/" -out "$keyname.crt"
+    openssl x509 -outform DER -in "$keyname.crt" -out "$keyname.cer"
+    cert-to-efi-sig-list -g "$(< "$EFI_ROLLER_ROOT/GUID")" "$keyname.crt" "$keyname.esl"
     )
 }
 
@@ -80,15 +80,15 @@ sign_key(){
     local signing_key_cert=$2
     local key_to_sign=$3
     (
-        umask 077
-        sign-efi-sig-list -g "$(< $EFI_ROLLER_ROOT/GUID)" -k "$signing_key" -c "$signing_key_cert" "$key_to_sign" "$key_to_sign.esl" "$key_to_sign.auth"
+    umask 077
+    sign-efi-sig-list -g "$(< "$EFI_ROLLER_ROOT/GUID")" -k "$signing_key" -c "$signing_key_cert" "$key_to_sign" "$key_to_sign.esl" "$key_to_sign.auth"
     )
 }
 
 create_keys(){
     local DIRECTORY="$EFI_ROLLER_ROOT/keys"
     local KEYSIZE=4096
-    pushd $EFI_ROLLER_ROOT >/dev/null
+    pushd "$EFI_ROLLER_ROOT" >/dev/null
 
     if [ -e "$DB/DB.key" ]; then
         error "Keys have been created before...quitting"
@@ -96,7 +96,7 @@ create_keys(){
     fi
 
     (umask 077; uuidgen --random > GUID)
-    msg "Created system GUID %s" $(< $EFI_ROLLER_ROOT/GUID)
+    msg "Created system GUID %s" "$(< "$EFI_ROLLER_ROOT/GUID")"
     msg "Creating keys with size %s" $KEYSIZE
 
     msg2 "Platform key..."
@@ -129,12 +129,12 @@ check_key(){
 }
 
 iterate_files(){
-    for file in $@; do
+    for file in "$@"; do
         local file_path=$(readlink -f $file) 
-        if [ -e $file_path ]; then
-            echo $file_path
+        if [ -e "$file_path" ]; then
+            echo "$file_path"
         else
-            error "%s does not exists" $file_path
+            error "%s does not exists" "$file_path"
         fi
     done
 }
@@ -142,8 +142,8 @@ iterate_files(){
 enroll(){
     declare -A files
     . "$FILE_DATABASE"
-    for file in $(iterate_files $@); do
-        msg "Enrolling %s..." $file
+    for file in $(iterate_files "$@"); do
+        msg "Enrolling %s..." "$file"
         files["$file"]=1
     done
     declare -p files > "$FILE_DATABASE"
@@ -177,7 +177,7 @@ enroll_keys_cli(){
 }
 
 enroll_keys(){
-    if enroll_keys_with_efi; then
+    if enroll_keys_cli; then
         return
     fi
     error "Couldn't enroll keys with efi-updatevar"
@@ -190,7 +190,7 @@ enroll_keys(){
         msg "Found KeyTool.efi"
         msg2 "Moving info $ESP/EFI/BOOT/KeyTool.efi and signing..."
         test -d "$ESP/EFI/BOOT" || mkdir -p "$ESP/EFI/BOOT"
-        cp /usr/share/efitools/efi/KeyTool.efi "$ESP/EFI/BOOT"
+        cp /usr/share/efitools/efi/KeyTool.efi "$ESP/EFI/BOOT/"
         sign "$ESP/EFI/BOOT/KeyTool.efi"
     fi
     warning "Keys have been put on %s. Remember to remove keys after the enrollment!" "$ESP/keys"
@@ -215,7 +215,7 @@ verify(){
     fi
 }
 
-verify-esp(){
+verify_esp(){
     msg "Verifying EFI images in $ESP..."
     local ALL=1
     for img in $(find_efi_images); do
@@ -250,7 +250,7 @@ sign_all(){
 help(){
     cat <<-EOF
 Usage:
-  $0 [COMMAND]
+  $PROGRAM [COMMAND]
 
 Commands:
   create-keys           Create keys for EFI signatures.
@@ -267,43 +267,59 @@ EOF
 
 test -z "$@" && help
 
-for cmd in "$@"; do
-    case "$cmd" in
-        sign)
-            shift
-            check_key
-            sign $@
-            ;;
-        sign-all)
-            check_key
-            sign_all
-            ;;
-        create-keys)
-            create_keys
-            ;;
-        enroll)
-            shift
-            enroll $@
-            ;;
-        enroll-keys)
-            check_key
-            enroll_keys
-            ;;
-        disenroll)
-            shift
-            disenroll $@
-            ;;
-        verify)
-            shift
-            check_key
-            verify $@
-            ;;
-        verify-esp)
-            check_key
-            verify-esp
-            ;;
-        help)
-            help
-            ;;
-    esac
-done
+PROGRAM="${0##*/}"
+COMMAND="$1"
+
+case "$1" in
+    sign)
+        shift
+        check_key
+        sign "$@"
+        ;;
+    sign-all)
+        check_key
+        sign_all
+        ;;
+    create-keys)
+        create_keys
+        ;;
+    enroll)
+        shift
+        enroll "$@"
+        ;;
+    enroll-keys)
+        check_key
+        enroll_keys
+        ;;
+    disenroll)
+        shift
+        disenroll "$@"
+        ;;
+    verify)
+        shift
+        check_key
+        verify "$@"
+        ;;
+    bundle)
+        shift
+        bundle "$@"
+        ;;
+    generate-bundles)
+        shift
+        generate_bundles "$@"
+        ;;
+    remove-bundle)
+        shift
+        remove_bundle "$@"
+        ;;
+    list-bundles)
+        list_bundles
+        ;;
+    verify-esp)
+        check_key
+        verify_esp
+        ;;
+    help)
+        help
+        ;;
+esac
