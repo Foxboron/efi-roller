@@ -29,6 +29,7 @@ Commands:
 * openssl
 * sbsigntools
 * util-linux
+* asciidoc (make)
 
 # Usage
 
